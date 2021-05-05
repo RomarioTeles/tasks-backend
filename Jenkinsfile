@@ -51,6 +51,13 @@ pipeline{
         }
       }
     }
-
+    stage('Funcional Test'){
+      steps{
+        dir('funcional-test'){
+          git 'https://github.com/RomarioTeles/tasks-funcional-test'
+          sh 'mvn test'
+        }
+      }
+    }
   }
 }
