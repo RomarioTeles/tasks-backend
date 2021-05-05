@@ -35,8 +35,10 @@ pipeline{
       }
     }
     stage('API Tests'){
-      git 'https://github.com/RomarioTeles/tasks-api-test'
-      sh 'mvn test'
+      steps{
+        git 'https://github.com/RomarioTeles/tasks-api-test'
+        sh 'mvn test'
+      }
     }
   }
 }
