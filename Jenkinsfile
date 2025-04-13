@@ -1,63 +1,97 @@
-pipeline{
-  agent any
-  stages{
-    stage('Build Backend'){
-      steps{
-        sh 'mvn clean package -DskipTests=true'
-      }
+pipeline {
+    agent any
+
+    environment {
+        SONAR_HOST_URL = 'http://localhost:9000'
+        SONAR_PROJECT_KEY = 'DeployBack'
+        SONAR_LOGIN = '99055c633395ddfae1780a4dff3b1d40b00fcf53'
+        MAVEN_HOME = tool 'Maven'  // Especificando o Maven, caso tenha várias versões configuradas
+        TOMCAT_URL = 'http://localhost:8001'
+        TOMCAT_CREDENTIALS_ID = 'TomcatLogin'  // Id da credencial do Tomcat
     }
-    stage('Unit Tests'){
-      steps{
-        sh 'mvn test'
-      }
-    }
-    stage('Sonar Analysis'){
-      environment{
-        scannerHome = tool 'SONAR_SCANNER'
-      }
-      steps{
-        withSonarQubeEnv('SONAR_LOCAL'){
-          sh "${scannerHome}/bin/sonar-scanner -e -Dsonar.projectKey=DeployBack -Dsonar.host.url=http://localhost:9000 -Dsonar.login=99055c633395ddfae1780a4dff3b1d40b00fcf53 -Dsonar.java.binaries=target -Dsonar.coverage.exclusions=**/.mvn/**,**/src/test/**,**/model/**,**Application.java"
+
+    stages {
+        stage('Build Backend') {
+            steps {
+                bat "${MAVEN_HOME}/bin/mvn clean package -DskipTests=true"
+            }
         }
-      }
-    }
-    stage('Quality Gate'){
-      steps{
-        sleep(5)
-        timeout(time: 1, unit: 'MINUTES'){
-          waitForQualityGate abortPipeline:true
+
+        stage('Unit Tests') {
+            steps {
+                bat "${MAVEN_HOME}/bin/mvn test"
+            }
         }
-      }
-    }
-    stage('Deploy Backend'){
-      steps{
-        deploy adapters: [tomcat8(credentialsId: 'TomcatLogin', path: '', url: 'http://localhost:8001')], contextPath: 'tasks-backend', war: 'target/tasks-backend.war'
-      }
-    }
-    stage('API Tests'){
-      steps{
-        dir('api-test'){
-          git 'https://github.com/RomarioTeles/tasks-api-test'
-          sh 'mvn test'
+
+        stage('Sonar Analysis') {
+            environment {
+                scannerHome = tool 'SONAR_SCANNER'
+            }
+            steps {
+                withSonarQubeEnv('SONAR_LOCAL') {
+                    bat "${scannerHome}/bin/sonar-scanner -e -Dsonar.projectKey=${SONAR_PROJECT_KEY} -Dsonar.host.url=${SONAR_HOST_URL} -Dsonar.login=${SONAR_LOGIN} -Dsonar.java.binaries=target -Dsonar.coverage.exclusions=**/.mvn/**,**/src/test/**,**/model/**,**Application.java"
+                }
+            }
         }
-      }
-    }
-    stage('Deploy FrontEnd'){
-      steps{
-        dir('frontend'){
-          git 'https://github.com/RomarioTeles/tasks-frontend'
-          sh 'mvn clean package'
-          deploy adapters: [tomcat8(credentialsId: 'TomcatLogin', path: '', url: 'http://localhost:8001')], contextPath: 'tasks', war: 'target/tasks.war'
+
+        stage('Quality Gate') {
+            steps {
+                timeout(time: 2, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
         }
-      }
-    }
-    stage('Funcional Test'){
-      steps{
-        dir('funcional-test'){
-          git 'https://github.com/RomarioTeles/tasks-funcional-test'
-          sh 'mvn test'
+
+        stage('Deploy Backend') {
+            steps {
+                deploy adapters: [tomcat8(credentialsId: TOMCAT_CREDENTIALS_ID, path: '', url: TOMCAT_URL)], contextPath: 'tasks-backend', war: 'target/tasks-backend.war'
+            }
         }
-      }
+
+        stage('API Tests') {
+            steps {
+                dir('api-test') {
+                    deleteDir()  // Limpa o diretório antes de clonar
+                    git 'https://github.com/RomarioTeles/tasks-api-test'
+                    bat "${MAVEN_HOME}/bin/mvn test"
+                }
+            }
+        }
+
+        stage('Deploy FrontEnd') {
+            steps {
+                dir('frontend') {
+                    deleteDir()  // Limpa o diretório antes de clonar
+                    git 'https://github.com/RomarioTeles/tasks-frontend'                 
+                    bat "${MAVEN_HOME}/bin/mvn clean package -DskipTests=true"
+
+                    deploy adapters: [tomcat8(credentialsId: TOMCAT_CREDENTIALS_ID, path: '', url: TOMCAT_URL)], contextPath: 'tasks', war: 'target/tasks.war'
+                }
+            }
+        }
+
+        stage('Funcional Test') {
+            steps {
+                dir('funcional-test') {
+                    deleteDir()  // Limpa o diretório antes de clonar
+                    git 'https://github.com/RomarioTeles/tasks-funcional-test'
+                    bat "${MAVEN_HOME}/bin/mvn test"
+                }
+            }
+        }
     }
-  }
+
+    post {
+        success {
+            echo 'Build and deploy were successful!'
+        }
+
+        failure {
+            emailext(
+                subject: "Build Failed: ${currentBuild.fullDisplayName}",
+                body: "Build failed! Please check the Jenkins logs for details.",
+                to: 'rommario20@gmail.com'
+            )
+        }
+    }
 }
