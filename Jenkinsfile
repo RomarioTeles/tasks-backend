@@ -5,7 +5,7 @@ pipeline {
         SONAR_HOST_URL = 'http://localhost:9000'
         SONAR_PROJECT_KEY = 'DeployBack'
         SONAR_LOGIN = '99055c633395ddfae1780a4dff3b1d40b00fcf53'
-        MAVEN_HOME = tool 'Maven'  // Especificando o Maven, caso tenha várias versões configuradas
+        MAVEN_HOME = tool name: 'Maven', type: 'Tool' // Especificando o Maven, caso tenha várias versões configuradas
         TOMCAT_URL = 'http://localhost:8001'
         TOMCAT_CREDENTIALS_ID = 'TomcatLogin'  // Id da credencial do Tomcat
     }
